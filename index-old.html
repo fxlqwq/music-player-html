@@ -621,6 +621,41 @@
       color: rgba(255, 255, 255, 0.7);
     }
 
+    /* 新增重复播放按钮样式 */
+    .repeat-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    .repeat-btn:hover {
+      background: var(--primary);
+      transform: scale(1.1);
+    }
+    
+    .repeat-btn.active {
+      color: var(--accent);
+    }
+    
+    .repeat-btn.repeat-one::after {
+      content: "1";
+      position: absolute;
+      font-size: 9px;
+      bottom: 8px;
+      right: 10px;
+      color: var(--accent);
+    }
+
     /* Responsive adjustments */
     @media (max-width: 768px) {
       .player-container {
@@ -796,6 +831,8 @@
         <button class="control-btn control-btn-small" id="prevBtn"><i class="fas fa-step-backward"></i></button>
         <button class="control-btn" id="playPauseBtn"><i class="fas fa-play"></i></button>
         <button class="control-btn control-btn-small" id="nextBtn"><i class="fas fa-step-forward"></i></button>
+        <!-- 新增重复播放按钮 -->
+        <button class="repeat-btn" id="repeatBtn" title="重复播放模式"><i class="fas fa-repeat"></i></button>
       </div>
       
       <!-- Moved volume controls here -->
@@ -845,6 +882,7 @@
     const playPauseBtn = document.getElementById("playPauseBtn");
     const prevBtn = document.getElementById("prevBtn");
     const nextBtn = document.getElementById("nextBtn");
+    const repeatBtn = document.getElementById("repeatBtn"); // 重复播放按钮
     const progressSlider = document.getElementById("progressSlider");
     const lyricOverlay = document.getElementById("lyricOverlay");
     const lyricContent = document.getElementById("lyricContent");
@@ -879,26 +917,29 @@
     let animationFrame;
     let bingBackgroundTimestamp = Date.now(); // For caching Bing image
     
-    // Set default background
+    // 重复播放模式变量 (0: 不重复, 1: 单曲循环, 2: 列表循环)
+    let repeatMode = 0;
+    
+    // 设置默认背景
     function setDefaultBackground() {
       // Use Bing daily image with a timestamp parameter to bypass cache when refreshing
       backgroundDiv.style.backgroundImage = `url(https://api.dujin.org/bing/1920.php?t=${bingBackgroundTimestamp})`;
     }
     
-    // Refresh background function
+    // 刷新背景函数
     function refreshBingBackground() {
       bingBackgroundTimestamp = Date.now();
       setDefaultBackground();
       showNotification("背景图片已更新");
     }
     
-    // Add event listener to refresh button
+    // 添加刷新按钮事件监听器
     refreshBackground.addEventListener('click', refreshBingBackground);
     
-    // Initialize background on load
+    // 初始化背景
     setDefaultBackground();
     
-    // Show notification function
+    // 显示通知函数
     function showNotification(message, duration = 3000) {
       notification.textContent = message;
       notification.classList.add('active');
@@ -908,19 +949,19 @@
       }, duration);
     }
     
-    // Settings button toggle
+    // 设置按钮切换
     settingsBtn.addEventListener('click', () => {
       settingsPanel.classList.toggle('active');
     });
     
-    // Close settings when clicking outside
+    // 点击外部关闭设置面板
     document.addEventListener('click', (e) => {
       if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) {
         settingsPanel.classList.remove('active');
       }
     });
     
-    // Theme changing
+    // 主题更改
     themeSelect.addEventListener('change', () => {
       const root = document.documentElement;
       
@@ -947,19 +988,19 @@
       showNotification('主题已更新');
     });
     
-    // Visualizer toggle
+    // 可视化切换
     visualizerCheck.addEventListener('change', () => {
       visualization.style.display = visualizerCheck.checked ? 'flex' : 'none';
     });
     
-    // Toggle toolbar visibility on mobile
+    // 移动端工具栏切换
     toggleToolbar.addEventListener('click', () => {
       fileToolbar.style.opacity = fileToolbar.style.opacity === '1' ? '0.6' : '1';
     });
     
-    // Initialize audio visualization
+    // 初始化音频可视化
     function initVisualization() {
-      // Create visualization bars
+      // 创建可视化条
       for (let i = 0; i < 16; i++) {
         const bar = document.createElement('div');
         bar.className = 'bar';
@@ -968,7 +1009,7 @@
       }
     }
     
-    // Update visualization
+    // 更新可视化
     function updateVisualization() {
       if (!audioContext || !analyser || !visualizerCheck.checked) return;
       
@@ -983,7 +1024,7 @@
         const height = Math.max(3, (value / 255) * 50);
         bar.style.height = `${height}px`;
         
-        // Change color based on intensity
+        // 根据音频强度改变颜色
         const hue = 280 - ((value / 255) * 60);
         bar.style.backgroundColor = `hsl(${hue}, 80%, 60%)`;
       });
@@ -991,30 +1032,30 @@
       animationFrame = requestAnimationFrame(updateVisualization);
     }
 
-    // Format time (seconds to MM:SS)
+    // 格式化时间（将秒转换为MM:SS格式）
     function formatTime(seconds) {
       const mins = Math.floor(seconds / 60);
       const secs = Math.floor(seconds % 60);
       return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     }
 
-    // Read music file
+    // 读取音乐文件
     musicInput.addEventListener("change", function() {
       const file = this.files[0];
       if (file) {
         const url = URL.createObjectURL(file);
         audioPlayer.src = url;
         
-        // Show file name as song title
-        const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+        // 将文件名显示为歌曲标题
+        const fileName = file.name.replace(/\.[^/.]+$/, ""); // 移除扩展名
         songTitle.textContent = fileName;
         lyricTitle.textContent = fileName;
         songArtist.textContent = "本地音乐";
         
-        // Show notification
+        // 显示通知
         showNotification(`已加载音乐: ${fileName}`);
         
-        // Initialize audio context if needed
+        // 如果需要，初始化音频上下文
         if (!audioContext) {
           audioContext = new (window.AudioContext || window.webkitAudioContext)();
           analyser = audioContext.createAnalyser();
@@ -1024,11 +1065,11 @@
           analyser.connect(audioContext.destination);
         }
         
-        // Reset progress
+        // 重置进度
         progressSlider.value = 0;
         currentTimeDisplay.textContent = "0:00";
         
-        // Auto play when loaded if enabled
+        // 加载后如果启用了自动播放，则自动播放
         audioPlayer.addEventListener("loadedmetadata", function() {
           totalTimeDisplay.textContent = formatTime(audioPlayer.duration);
           
@@ -1039,7 +1080,7 @@
       }
     });
 
-    // Read cover file
+    // 读取封面文件
     coverInput.addEventListener("change", function() {
       const file = this.files[0];
       if (file) {
@@ -1050,13 +1091,13 @@
         
         showNotification("封面已更新");
         
-        // Set background with blur effect
+        // 设置带有模糊效果的背景
         backgroundDiv.style.backgroundImage = `url(${url})`;
         
-        // Calculate average brightness to adjust lyrics text color
+        // 计算平均亮度来调整歌词文本颜色
         coverImg.onload = function() {
           computeImageBrightness(coverImg, function(avgBrightness) {
-            // If average brightness is low (dark cover), use light text color, otherwise dark
+            // 如果平均亮度低（深色封面），使用亮色文本，否则使用深色
             if (avgBrightness < 128) {
               lyricContent.style.color = varColor('--light', '#F8F8FF');
             } else {
@@ -1067,7 +1108,7 @@
       }
     });
 
-    // Calculate image average brightness using Canvas
+    // 使用Canvas计算图像平均亮度
     function computeImageBrightness(image, callback) {
       const canvas = document.createElement("canvas");
       canvas.width = image.naturalWidth;
@@ -1085,26 +1126,26 @@
         const brightness = Math.floor(colorSum / (image.naturalWidth * image.naturalHeight));
         callback(brightness);
       } catch (e) {
-        // Default to light text if there's an error (e.g., CORS issues)
+        // 如果出现错误（例如，CORS问题），默认使用亮色文本
         callback(0);
       }
     }
 
-    // Get CSS variable value (with fallback)
+    // 获取CSS变量值（带有后备值）
     function varColor(name, def) {
       return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || def;
     }
 
-    // Read lyrics file with encoding detection
+    // 读取带编码检测的歌词文件
     lyricInput.addEventListener("change", function() {
       const file = this.files[0];
       if (file) {
         const reader = new FileReader();
-        // Try GBK encoding first (common for Chinese lyrics)
+        // 首先尝试GBK编码（中文歌词常用）
         reader.readAsText(file, "GBK");
         reader.onload = function(e) {
           parseLyrics(e.target.result);
-          // If parsing failed or resulted in gibberish, try UTF-8
+          // 如果解析失败或导致乱码，尝试UTF-8
           if (lyrics.length === 0 || lyrics.some(line => /�/.test(line.text))) {
             const reader2 = new FileReader();
             reader2.readAsText(file, "UTF-8");
@@ -1122,7 +1163,7 @@
       }
     });
 
-    // Play/pause button
+    // 播放/暂停按钮
     playPauseBtn.addEventListener("click", () => {
       if (audioPlayer.paused) {
         if (audioContext && audioContext.state === 'suspended') {
@@ -1144,18 +1185,43 @@
       }
     });
 
-    // Previous/Next buttons (placeholder for future playlist functionality)
+    // 上一首/下一首按钮（目前仅作为占位符，为未来的播放列表功能预留）
     prevBtn.addEventListener("click", () => {
-      // For now, just restart the current track
+      // 现在只是重新开始当前曲目
       audioPlayer.currentTime = 0;
     });
     
     nextBtn.addEventListener("click", () => {
-      // For now, just skip ahead 10 seconds
+      // 现在只是向前跳过10秒
       audioPlayer.currentTime = Math.min(audioPlayer.currentTime + 10, audioPlayer.duration || 0);
     });
+    
+    // 重复播放按钮点击事件
+    repeatBtn.addEventListener("click", () => {
+      repeatMode = (repeatMode + 1) % 3; // 循环切换：0 -> 1 -> 2 -> 0
+      
+      // 根据模式更新重复按钮样式
+      switch(repeatMode) {
+        case 0: // 不重复
+          repeatBtn.innerHTML = '<i class="fas fa-repeat"></i>';
+          repeatBtn.classList.remove('active', 'repeat-one');
+          showNotification("重复播放：关闭");
+          break;
+        case 1: // 单曲循环
+          repeatBtn.innerHTML = '<i class="fas fa-repeat"></i>';
+          repeatBtn.classList.add('active', 'repeat-one');
+          showNotification("重复播放：单曲循环");
+          break;
+        case 2: // 列表循环（未来支持）
+          repeatBtn.innerHTML = '<i class="fas fa-redo-alt"></i>';
+          repeatBtn.classList.add('active');
+          repeatBtn.classList.remove('repeat-one');
+          showNotification("重复播放：列表循环");
+          break;
+      }
+    });
 
-    // Update progress bar and time displays
+    // 更新进度条和时间显示
     audioPlayer.addEventListener("timeupdate", () => {
       if (audioPlayer.duration) {
         const percent = (audioPlayer.currentTime / audioPlayer.duration) * 100;
@@ -1165,7 +1231,7 @@
       updateLyricHighlight();
     });
 
-    // Progress slider interaction
+    // 进度滑块交互
     progressSlider.addEventListener("input", () => {
       if (audioPlayer.duration) {
         const newTime = (progressSlider.value / 100) * audioPlayer.duration;
@@ -1174,12 +1240,12 @@
       }
     });
 
-    // Volume control
+    // 音量控制
     volumeSlider.addEventListener("input", () => {
       const volume = volumeSlider.value / 100;
       audioPlayer.volume = volume;
       
-      // Update volume icon based on level
+      // 根据音量级别更新音量图标
       if (volume === 0) {
         volumeIcon.className = "fas fa-volume-mute";
       } else if (volume < 0.5) {
@@ -1189,7 +1255,7 @@
       }
     });
     
-    // Volume icon click to mute/unmute
+    // 点击音量图标静音/取消静音
     volumeIcon.addEventListener("click", () => {
       if (audioPlayer.volume > 0) {
         audioPlayer.oldVolume = audioPlayer.volume;
@@ -1203,13 +1269,34 @@
       }
     });
 
-    // Track ended event
+    // 曲目结束事件
     audioPlayer.addEventListener("ended", () => {
-      playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
-      cancelAnimationFrame(animationFrame);
+      // 根据重复模式处理
+      switch(repeatMode) {
+        case 0: // 不重复
+          playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+          cancelAnimationFrame(animationFrame);
+          break;
+        case 1: // 单曲循环
+          audioPlayer.currentTime = 0;
+          audioPlayer.play()
+            .then(() => {
+              // 继续可视化
+              updateVisualization();
+            });
+          break;
+        case 2: // 列表循环（目前只有一首歌，未来扩展）
+          audioPlayer.currentTime = 0;
+          audioPlayer.play()
+            .then(() => {
+              // 继续可视化
+              updateVisualization();
+            });
+          break;
+      }
     });
 
-    // Cover click to show lyrics overlay
+    // 点击封面显示歌词覆盖层
     cover.addEventListener("click", () => {
       lyricOverlay.style.display = "flex";
       lyricOverlay.style.opacity = 0;
@@ -1218,7 +1305,7 @@
       }, 10);
     });
     
-    // Close lyrics button
+    // 关闭歌词按钮
     closeLyrics.addEventListener("click", () => {
       lyricOverlay.style.opacity = 0;
       setTimeout(() => {
@@ -1226,7 +1313,7 @@
       }, 300);
     });
     
-    // Click outside lyric content to close
+    // 点击歌词内容外部关闭
     lyricOverlay.addEventListener("click", (e) => {
       if (e.target === lyricOverlay) {
         lyricOverlay.style.opacity = 0;
@@ -1236,7 +1323,7 @@
       }
     });
 
-    // Parse LRC format lyrics
+    // 解析LRC格式歌词
     function parseLyrics(text) {
       lyrics = [];
       const lines = text.split('\n');
@@ -1251,7 +1338,7 @@
           const time = minutes * 60 + seconds + millis;
           const lyricText = line.replace(timeExp, "").trim();
           
-          if (lyricText) { // Only add if there's actual text
+          if (lyricText) { // 仅添加有实际文本的部分
             lyrics.push({time: time, text: lyricText});
           }
         }
@@ -1261,9 +1348,9 @@
       renderLyrics();
     }
 
-    // Render lyrics to the lyric content area
+    // 将歌词渲染到歌词内容区域
     function renderLyrics() {
-      // Keep the header, remove the rest
+      // 保留标题，删除其余部分
       const header = lyricContent.querySelector('.lyric-header');
       lyricContent.innerHTML = '';
       lyricContent.appendChild(header);
@@ -1297,21 +1384,21 @@
       });
     }
 
-    // Prevent auto-scroll if user manually scrolls
+    // 如果用户手动滚动，阻止自动滚动
     lyricContent.addEventListener("scroll", () => {
       autoScroll = false;
       clearTimeout(autoScrollTimeout);
       autoScrollTimeout = setTimeout(() => {
         autoScroll = true;
-      }, 5000); // Resume auto-scroll after 5 seconds
+      }, 5000); // 5秒后恢复自动滚动
     });
 
-    // Highlight current lyric based on playback time
+    // 根据播放时间突出显示当前歌词
     function updateLyricHighlight() {
       const currentTime = audioPlayer.currentTime;
       let activeIndex = -1;
       
-      // Find the current lyric line
+      // 查找当前歌词行
       for (let i = 0; i < lyrics.length; i++) {
         if (currentTime < lyrics[i].time) {
           activeIndex = i - 1;
@@ -1322,16 +1409,16 @@
         }
       }
       
-      // Update lyric line classes
+      // 更新歌词行类
       const lyricLines = document.querySelectorAll(".lyric-line");
       lyricLines.forEach((line, i) => {
-        if (line.dataset.index === undefined) return; // Skip if not a lyric line (e.g., header)
+        if (line.dataset.index === undefined) return; // 如果不是歌词行（例如标题），则跳过
         
         const lineIndex = parseInt(line.dataset.index);
         if (lineIndex === activeIndex) {
           line.classList.add("active");
           
-          // Auto-scroll to active line if enabled
+          // 如果启用，自动滚动到活动行
           if (autoScroll) {
             const containerHeight = lyricContent.clientHeight;
             const lineTop = line.offsetTop;
@@ -1349,28 +1436,28 @@
       });
     }
 
-    // Initialize on page load
+    // 页面加载时初始化
     window.addEventListener('load', () => {
-      // Set initial volume
+      // 设置初始音量
       audioPlayer.volume = volumeSlider.value / 100;
       
-      // Create visualization bars
+      // 创建可视化条
       initVisualization();
       
-      // Welcome notification
+      // 欢迎通知
       setTimeout(() => {
         showNotification("欢迎使用现代音乐播放器", 5000);
       }, 1000);
       
-      // Enable keyboard controls
+      // 启用键盘控制
       document.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && e.target === document.body) {
-          e.preventDefault(); // Prevent page scroll on spacebar
+          e.preventDefault(); // 防止按空格键时页面滚动
           playPauseBtn.click();
         } else if (e.code === 'ArrowRight') {
-          audioPlayer.currentTime += 5; // Skip forward 5 seconds
+          audioPlayer.currentTime += 5; // 向前跳过5秒
         } else if (e.code === 'ArrowLeft') {
-          audioPlayer.currentTime -= 5; // Skip backward 5 seconds
+          audioPlayer.currentTime -= 5; // 向后跳过5秒
         } else if (e.code === 'ArrowUp' && e.target === document.body) {
           e.preventDefault();
           volumeSlider.value = Math.min(100, parseInt(volumeSlider.value) + 5);
@@ -1379,6 +1466,9 @@
           e.preventDefault();
           volumeSlider.value = Math.max(0, parseInt(volumeSlider.value) - 5);
           audioPlayer.volume = volumeSlider.value / 100;
+        } else if (e.code === 'KeyR') {
+          // 快捷键R切换重复模式
+          repeatBtn.click();
         }
       });
     });
