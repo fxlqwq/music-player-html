@@ -1,6 +1,6 @@
 # Modern Music Player HTML
 
-![播放器预览](https://m.fxl.pp.ua/final.png)
+![播放器预览](https://m.fxl.pp.ua/finalv1.2.png)
 
 ## 简介
 
