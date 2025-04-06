@@ -2013,14 +2013,17 @@
     const exists = currentPlaylist.some(item => item.name === fileName);
 
     if (!exists) {
-    currentPlaylist.push({
-      name: fileName,
-      url: fileUrl,
-      file: file
-    });
+      currentPlaylist.push({
+        name: fileName,
+        url: fileUrl,
+        file: file,
+        cover: null,      // 为每个播放列表项添加封面属性
+        lyrics: null,     // 为每个播放列表项添加歌词属性
+        lyricsArray: []   // 为每个播放列表项添加处理后的歌词数组
+      });
 
-    // 更新播放列表显示
-    updatePlaylistDisplay();
+      // 更新播放列表显示
+      updatePlaylistDisplay();
     }
     }
 
@@ -2031,200 +2034,438 @@
 
     // 填充列表项
     currentPlaylist.forEach((item, index) => {
-    const li = document.createElement('li');
-    li.className = 'playlist-item';
-    if (index === currentTrackIndex) {
-      li.classList.add('active');
-    }
+      const li = document.createElement('li');
+      li.className = 'playlist-item';
+      if (index === currentTrackIndex) {
+        li.classList.add('active');
+      }
 
-    li.innerHTML = `
-      <span class="playlist-item-title">${item.name}</span>
-      <div class="playlist-controls">
-        <button class="playlist-btn playlist-play" data-index="${index}"><i class="fas fa-play"></i></button>
-        <button class="playlist-btn playlist-remove" data-index="${index}"><i class="fas fa-trash"></i></button>
-      </div>
-    `;
+      li.innerHTML = `
+        <span class="playlist-item-title">${item.name}</span>
+        <div class="playlist-controls">
+          <button class="playlist-btn playlist-play" data-index="${index}" title="播放"><i class="fas fa-play"></i></button>
+          <button class="playlist-btn playlist-cover" data-index="${index}" title="设置封面"><i class="fas fa-image"></i></button>
+          <button class="playlist-btn playlist-lyric" data-index="${index}" title="设置歌词"><i class="fas fa-file-alt"></i></button>
+          <button class="playlist-btn playlist-remove" data-index="${index}" title="删除"><i class="fas fa-trash"></i></button>
+        </div>
+      `;
 
-    // 添加点击播放事件
-    const playBtn = li.querySelector('.playlist-play');
-    playBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      currentTrackIndex = index;
-      loadTrack(index);
-      playAudio();
-      updatePlaylistDisplay();
+      // 添加点击播放事件
+      const playBtn = li.querySelector('.playlist-play');
+      playBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        currentTrackIndex = index;
+        loadTrack(index);
+        playAudio();
+        updatePlaylistDisplay();
+      });
+
+      // 添加设置封面事件
+      const coverBtn = li.querySelector('.playlist-cover');
+      coverBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // 创建一个临时文件输入元素
+        const tempCoverInput = document.createElement('input');
+        tempCoverInput.type = 'file';
+        tempCoverInput.accept = 'image/*';
+        tempCoverInput.style.display = 'none';
+        document.body.appendChild(tempCoverInput);
+        
+        tempCoverInput.addEventListener('change', function() {
+          const file = this.files[0];
+          if (file) {
+            const url = URL.createObjectURL(file);
+            // 保存到播放列表项
+            currentPlaylist[index].cover = url;
+            showNotification(`已为"${currentPlaylist[index].name}"设置封面`);
+            
+            // 如果当前正在播放这个曲目，立即更新封面
+            if (index === currentTrackIndex) {
+              updateTrackCover(url);
+            }
+          }
+          // 移除临时元素
+          document.body.removeChild(tempCoverInput);
+        });
+        
+        // 触发点击
+        tempCoverInput.click();
+      });
+
+      // 添加设置歌词事件
+      const lyricBtn = li.querySelector('.playlist-lyric');
+      lyricBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // 创建一个临时文件输入元素
+        const tempLyricInput = document.createElement('input');
+        tempLyricInput.type = 'file';
+        tempLyricInput.accept = '.lrc,.txt';
+        tempLyricInput.style.display = 'none';
+        document.body.appendChild(tempLyricInput);
+        
+        tempLyricInput.addEventListener('change', function() {
+          const file = this.files[0];
+          if (file) {
+            // 读取歌词文件内容
+            const reader = new FileReader();
+            reader.readAsText(file, "GBK");
+            reader.onload = function(e) {
+              const lyricText = e.target.result;
+              // 检查是否为乱码，如果是则尝试UTF-8
+              if (/�/.test(lyricText)) {
+                const reader2 = new FileReader();
+                reader2.readAsText(file, "UTF-8");
+                reader2.onload = function(e) {
+                  processAndSaveLyrics(e.target.result, index);
+                };
+              } else {
+                processAndSaveLyrics(lyricText, index);
+              }
+            };
+          }
+          // 移除临时元素
+          document.body.removeChild(tempLyricInput);
+        });
+        
+        // 触发点击
+        tempLyricInput.click();
+      });
+
+      // 添加删除事件
+      const removeBtn = li.querySelector('.playlist-remove');
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFromPlaylist(index);
+      });
+
+      // 添加整行点击事件
+      li.addEventListener('click', () => {
+        currentTrackIndex = index;
+        loadTrack(index);
+        playAudio();
+        updatePlaylistDisplay();
+      });
+
+      playlistItems.appendChild(li);
     });
-
-    // 添加删除事件
-    const removeBtn = li.querySelector('.playlist-remove');
-    removeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeFromPlaylist(index);
-    });
-
-    // 添加整行点击事件
-    li.addEventListener('click', () => {
-      currentTrackIndex = index;
-      loadTrack(index);
-      playAudio();
-      updatePlaylistDisplay();
-    });
-
-    playlistItems.appendChild(li);
-    });
     }
 
-    // 从播放列表删除项目
-    function removeFromPlaylist(index) {
-    // 如果删除的是当前播放的曲目
-    if (index === currentTrackIndex) {
-    audioPlayer.pause();
-    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
-    fullscreenPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
+    // 处理并保存歌词
+    function processAndSaveLyrics(text, index) {
+      // 保存原始歌词文本
+      currentPlaylist[index].lyrics = text;
+      
+      // 解析歌词
+      const parsedLyrics = parseLyricsInternal(text);
+      currentPlaylist[index].lyricsArray = parsedLyrics;
+      
+      showNotification(`已为"${currentPlaylist[index].name}"设置歌词`);
+      
+      // 如果当前正在播放这个曲目，立即更新歌词
+      if (index === currentTrackIndex) {
+        // 设置全局歌词数组
+        lyrics = parsedLyrics;
+        renderLyrics();
+      }
     }
 
-    // 调整当前播放索引
-    if (index < currentTrackIndex) {
-    currentTrackIndex--;
-    } else if (index === currentTrackIndex && currentPlaylist.length > 1) {
-    // 如果删除的是最后一个，则索引调整到最后一个
-    if (index === currentPlaylist.length - 1) {
-      currentTrackIndex = currentPlaylist.length - 2;
-    }
-    // 否则保持索引不变，播放下一首
-    }
-
-    // 移除项目
-    currentPlaylist.splice(index, 1);
-
-    // 如果播放列表为空
-    if (currentPlaylist.length === 0) {
-    currentTrackIndex = 0;
-    }
-
-    // 更新播放列表显示
-    updatePlaylistDisplay();
-    showNotification('已从播放列表中移除');
+    // 更新当前曲目的封面
+    function updateTrackCover(coverUrl) {
+      if (coverUrl) {
+        coverImg.src = coverUrl;
+        fullscreenCoverImg.src = coverUrl;
+        coverImg.style.display = "block";
+        coverPlaceholder.style.display = "none";
+        
+        // 设置带有模糊效果的背景
+        backgroundDiv.style.backgroundImage = `url(${coverUrl})`;
+        
+        // 计算平均亮度来调整歌词文本颜色
+        coverImg.onload = function() {
+          computeImageBrightness(coverImg, function(avgBrightness) {
+            // 如果平均亮度低（深色封面），使用亮色文本，否则使用深色
+            if (avgBrightness < 128) {
+              lyricContent.style.color = varColor('--light', '#F8F8FF');
+            } else {
+              lyricContent.style.color = varColor('--dark', '#1A1A1A');
+            }
+          });
+        }
+      } else {
+        // 无封面时显示占位符
+        coverImg.style.display = "none";
+        coverPlaceholder.style.display = "block";
+      }
     }
 
     // 加载指定索引的曲目
     function loadTrack(index) {
     if (index >= 0 && index < currentPlaylist.length) {
-    const track = currentPlaylist[index];
-    audioPlayer.src = track.url;
+      const track = currentPlaylist[index];
+      audioPlayer.src = track.url;
 
-    // 更新界面
-    songTitle.textContent = track.name;
-    lyricTitle.textContent = track.name;
-    fullscreenTitle.textContent = track.name;
-    checkTitleScroll();
+      // 更新界面
+      songTitle.textContent = track.name;
+      lyricTitle.textContent = track.name;
+      fullscreenTitle.textContent = track.name;
+      checkTitleScroll();
 
-    // 重置进度
-    progressSlider.value = 0;
-    currentTimeDisplay.textContent = "0:00";
+      // 加载封面（如果有）
+      if (track.cover) {
+        updateTrackCover(track.cover);
+      } else {
+        // 无封面时显示占位符
+        coverImg.style.display = "none";
+        coverPlaceholder.style.display = "block";
+        // 恢复默认背景
+        setDefaultBackground();
+      }
 
-    // 加载完成后更新总时长
-    audioPlayer.addEventListener("loadedmetadata", function onLoaded() {
-      totalTimeDisplay.textContent = formatTime(audioPlayer.duration);
-      fullscreenTotalTime.textContent = formatTime(audioPlayer.duration);
-      audioPlayer.removeEventListener("loadedmetadata", onLoaded);
-    });
+      // 加载歌词（如果有）
+      if (track.lyricsArray && track.lyricsArray.length > 0) {
+        lyrics = track.lyricsArray;
+        renderLyrics();
+      } else if (track.lyrics) {
+        // 如果有原始歌词文本但没有解析过
+        lyrics = parseLyricsInternal(track.lyrics);
+        track.lyricsArray = lyrics;
+        renderLyrics();
+      } else {
+        // 清空歌词
+        lyrics = [];
+        renderLyrics();
+      }
 
-    // 更新播放列表激活状态
-    updatePlaylistDisplay();
+      // 重置进度
+      progressSlider.value = 0;
+      currentTimeDisplay.textContent = "0:00";
+
+      // 加载完成后更新总时长
+      audioPlayer.addEventListener("loadedmetadata", function onLoaded() {
+        totalTimeDisplay.textContent = formatTime(audioPlayer.duration);
+        fullscreenTotalTime.textContent = formatTime(audioPlayer.duration);
+        audioPlayer.removeEventListener("loadedmetadata", onLoaded);
+      });
+
+      // 更新播放列表激活状态
+      updatePlaylistDisplay();
     }
+    }
+
+    // 内部解析LRC格式歌词函数（不直接设置全局lyrics数组）
+    function parseLyricsInternal(text) {
+      const result = [];
+      const lines = text.split('\n');
+      const timeExp = /\[(\d{2}):(\d{2})(\.\d{2,3})?\]/g;
+      
+      // 处理歌词分段（空行或标记为分段的行）
+      let currentSection = null;
+      
+      lines.forEach(line => {
+        // 检查是否为分段标记行（例如：[00:00.00]verse 或 [00:00.00]chorus）
+        const sectionMatch = line.match(/^\[(\d{2}):(\d{2})(\.\d{2,3})?\](verse|chorus|bridge|intro|outro|section|段落|主歌|副歌|间奏|前奏|结尾|结束)/i);
+        
+        if (sectionMatch || line.trim() === '' || line.trim() === '//') {
+          // 如果是分段标记或空行，创建新的分段
+          if (sectionMatch) {
+            const minutes = parseInt(sectionMatch[1]);
+            const seconds = parseInt(sectionMatch[2]);
+            const millis = sectionMatch[3] ? parseFloat(sectionMatch[3]) : 0;
+            const time = minutes * 60 + seconds + millis;
+            const sectionName = sectionMatch[4].trim();
+            
+            // 创建分段标记
+            currentSection = {
+              time: time,
+              name: sectionName,
+              isSection: true
+            };
+            
+            result.push(currentSection);
+          } else if (line.trim() !== '') {
+            // 如果不是空行但是特殊标记行
+            currentSection = {
+              time: 0,
+              name: line.trim(),
+              isSection: true
+            };
+            result.push(currentSection);
+          }
+          return;
+        }
+        
+        let match;
+        const timeMatches = [];
+
+        // 收集一行中的所有时间标记
+        while ((match = timeExp.exec(line)) !== null) {
+          const minutes = parseInt(match[1]);
+          const seconds = parseInt(match[2]);
+          const millis = match[3] ? parseFloat(match[3]) : 0;
+          const time = minutes * 60 + seconds + millis;
+          timeMatches.push({time, index: match.index, length: match[0].length});
+        }
+
+        // 如果有时间标记
+        if (timeMatches.length > 0) {
+          // 提取歌词文本（去掉所有时间标记）
+          let lyricText = line;
+          for (let i = timeMatches.length - 1; i >= 0; i--) {
+            lyricText = lyricText.substring(0, timeMatches[i].index) + 
+                     lyricText.substring(timeMatches[i].index + timeMatches[i].length);
+          }
+          lyricText = lyricText.trim();
+          
+          // 为每个时间标记添加相同的歌词
+          if (lyricText) {
+            timeMatches.forEach(tm => {
+              result.push({
+                time: tm.time, 
+                text: lyricText,
+                isSection: false
+              });
+            });
+          }
+        }
+      });
+
+      // 按时间排序
+      return result.sort((a, b) => a.time - b.time);
+    }
+
+    // 将歌词渲染到歌词内容区域（支持分段）
+    function renderLyrics() {
+      // 保留标题，删除其余部分
+      const header = lyricContent.querySelector('.lyric-header');
+      lyricContent.innerHTML = '';
+      lyricContent.appendChild(header);
+
+      if (lyrics.length === 0) {
+        const div = document.createElement("div");
+        div.className = "lyric-line";
+        div.textContent = "未找到歌词或格式不正确";
+        lyricContent.appendChild(div);
+        return;
+      }
+
+      // 使用DocumentFragment优化性能
+      const fragment = document.createDocumentFragment();
+      
+      // 当前分段
+      let currentSection = null;
+
+      lyrics.forEach((line, index) => {
+        // 如果是分段标记
+        if (line.isSection) {
+          // 创建分段标题元素
+          const sectionDiv = document.createElement("div");
+          sectionDiv.className = "lyric-section";
+          sectionDiv.textContent = line.name || "♪";
+          sectionDiv.dataset.time = line.time;
+          sectionDiv.dataset.index = index;
+          
+          // 分段样式
+          sectionDiv.style.textAlign = "center";
+          sectionDiv.style.fontWeight = "bold";
+          sectionDiv.style.padding = "15px 0";
+          sectionDiv.style.margin = "10px 0";
+          sectionDiv.style.borderBottom = "1px dashed rgba(255,255,255,0.3)";
+          
+          // 点击定位
+          sectionDiv.addEventListener("click", () => {
+            audioPlayer.currentTime = line.time;
+            if (audioPlayer.paused) {
+              playAudio();
+            }
+          });
+          
+          fragment.appendChild(sectionDiv);
+          currentSection = line;
+          return;
+        }
+        
+        // 普通歌词行
+        const div = document.createElement("div");
+        div.className = "lyric-line";
+        div.dataset.time = line.time;
+        div.dataset.index = index;
+        div.textContent = line.text || "♪";
+
+        div.addEventListener("click", () => {
+          audioPlayer.currentTime = line.time;
+          if (audioPlayer.paused) {
+            playAudio();
+          }
+        });
+
+        fragment.appendChild(div);
+      });
+
+      lyricContent.appendChild(fragment);
+    }
+
+    // 替换全局parse函数，使用内部解析函数
+    function parseLyrics(text) {
+      lyrics = parseLyricsInternal(text);
+      renderLyrics();
     }
 
     // 读取封面文件
     coverInput.addEventListener("change", function() {
     const file = this.files[0];
     if (file) {
-    const url = URL.createObjectURL(file);
-    coverImg.src = url;
-    fullscreenCoverImg.src = url;
-    coverImg.style.display = "block";
-    coverPlaceholder.style.display = "none";
-
-    showNotification("封面已更新");
-
-    // 设置带有模糊效果的背景
-    backgroundDiv.style.backgroundImage = `url(${url})`;
-
-    // 计算平均亮度来调整歌词文本颜色
-    coverImg.onload = function() {
-      computeImageBrightness(coverImg, function(avgBrightness) {
-        // 如果平均亮度低（深色封面），使用亮色文本，否则使用深色
-        if (avgBrightness < 128) {
-          lyricContent.style.color = varColor('--light', '#F8F8FF');
-        } else {
-          lyricContent.style.color = varColor('--dark', '#1A1A1A');
-        }
-      });
-    }
+      const url = URL.createObjectURL(file);
+      
+      // 如果有当前播放的歌曲，保存封面到该曲目
+      if (currentPlaylist.length > 0) {
+        currentPlaylist[currentTrackIndex].cover = url;
+      }
+      
+      updateTrackCover(url);
+      showNotification("封面已更新");
     }
     });
-
-    // 使用Canvas计算图像平均亮度（优化版本）
-    function computeImageBrightness(image, callback) {
-    const canvas = document.createElement("canvas");
-    // 降低分辨率加快计算速度
-    const sampleSize = Math.min(image.naturalWidth, image.naturalHeight, 50);
-    canvas.width = sampleSize;
-    canvas.height = sampleSize;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(image, 0, 0, sampleSize, sampleSize);
-
-    try {
-    const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
-    let data = imageData.data;
-    let colorSum = 0;
-    const pixelCount = data.length / 4;
-
-    // 优化循环，每4个元素一次
-    for (let i = 0; i < data.length; i += 16) {
-      const avg = Math.floor((data[i] + data[i+1] + data[i+2]) / 3);
-      colorSum += avg;
-    }
-
-    const brightness = Math.floor(colorSum / (pixelCount / 4));
-    callback(brightness);
-    } catch (e) {
-    // 如果出现错误（例如，CORS问题），默认使用亮色文本
-    console.error('计算亮度时出错：', e);
-    callback(0);
-    }
-    }
-
-    // 获取CSS变量值（带有后备值）
-    function varColor(name, def) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || def;
-    }
 
     // 读取带编码检测的歌词文件
     lyricInput.addEventListener("change", function() {
     const file = this.files[0];
     if (file) {
-    const reader = new FileReader();
-    // 首先尝试GBK编码（中文歌词常用）
-    reader.readAsText(file, "GBK");
-    reader.onload = function(e) {
-      parseLyrics(e.target.result);
-      // 如果解析失败或导致乱码，尝试UTF-8
-      if (lyrics.length === 0 || lyrics.some(line => /�/.test(line.text))) {
-        const reader2 = new FileReader();
-        reader2.readAsText(file, "UTF-8");
-        reader2.onload = function(e) {
-          parseLyrics(e.target.result);
+      const reader = new FileReader();
+      // 首先尝试GBK编码（中文歌词常用）
+      reader.readAsText(file, "GBK");
+      reader.onload = function(e) {
+        const lyricText = e.target.result;
+        // 检查是否为乱码
+        if (/�/.test(lyricText)) {
+          const reader2 = new FileReader();
+          reader2.readAsText(file, "UTF-8");
+          reader2.onload = function(e) {
+            const utf8Text = e.target.result;
+            parseLyrics(utf8Text);
+            
+            // 如果有当前播放的歌曲，保存歌词到该曲目
+            if (currentPlaylist.length > 0) {
+              currentPlaylist[currentTrackIndex].lyrics = utf8Text;
+              currentPlaylist.currentTrackIndex.lyricsArray = lyrics;
+            }
+            
+            showNotification("歌词已加载");
+          };
+        } else {
+          parseLyrics(lyricText);
+          
+          // 如果有当前播放的歌曲，保存歌词到该曲目
+          if (currentPlaylist.length > 0) {
+            currentPlaylist[currentTrackIndex].lyrics = lyricText;
+            currentPlaylist.currentTrackIndex.lyricsArray = lyrics;
+          }
+          
           showNotification("歌词已加载");
-        };
-      } else {
-        showNotification("歌词已加载");
-      }
-    };
-    reader.onerror = function() {
-      showNotification("文件读取错误，请检查文件编码格式", 5000);
-    };
+        }
+      };
+      reader.onerror = function() {
+        showNotification("文件读取错误，请检查文件编码格式", 5000);
+      };
     }
     });
 
@@ -2880,3 +3121,5 @@
     saveCurrentSettings();
     });
     </script>
+</body>
+</html>
